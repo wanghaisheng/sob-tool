@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>双线乖离极值反转 · SQLite 本地库</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+  <style>
+    :root {
+      --bg:#0f172a; --card:#1e293b; --border:#334155; --text:#e2e8f0;
+      --muted:#94a3b8; --red:#ef4444; --green:#22c55e; --yellow:#eab308; --blue:#3b82f6;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);line-height:1.55;padding:16px;min-height:100vh}
+    .container{max-width:1500px;margin:0 auto}
+    h1{font-size:1.45rem;margin-bottom:4px;background:linear-gradient(90deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+    .subtitle{color:var(--muted);font-size:.85rem;margin-bottom:16px}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px}
+    .card h3{font-size:.95rem;margin-bottom:10px;color:#cbd5e1}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .cfg{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
+    input[type=text],select,textarea{padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:#0f172a;color:var(--text);font-size:.9rem}
+    input[type=text]{flex:1;min-width:140px}
+    select{min-width:130px;cursor:pointer}
+    textarea{width:100%;min-height:64px;resize:vertical;font-family:inherit}
+    input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
+    button{padding:9px 14px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);color:#fff;border:none;border-radius:8px;font-size:.88rem;cursor:pointer;font-weight:600}
+    button:hover{opacity:.9} button:disabled{opacity:.45;cursor:not-allowed}
+    button.sec{background:#334155} button.dang{background:#7f1d1d}
+    .hint{font-size:.78rem;color:var(--muted);margin-top:6px}
+    .status{margin-top:8px;font-size:.85rem}
+    .status.err{color:var(--red)}.status.load{color:var(--yellow)}.status.ok{color:var(--green)}
+    .item{display:flex;align-items:center;gap:6px;font-size:.85rem}
+    .item label{color:var(--muted);white-space:nowrap}
+    .tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+    .tag{display:inline-flex;align-items:center;gap:4px;background:#0f172a;border:1px solid var(--border);border-radius:999px;padding:3px 8px 3px 10px;font-size:.8rem}
+    .tag button{padding:0 3px;background:transparent;color:var(--muted);font-size:.95rem}
+    .tag button:hover{color:var(--red)}
+    .sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:12px}
+    .si{background:#0f172a;border-radius:8px;padding:12px;border-left:4px solid var(--blue)}
+    .si.sell{border-left-color:var(--red)}.si.buy{border-left-color:var(--green)}
+    .si h4{font-size:.75rem;color:var(--muted);margin-bottom:3px}
+    .si .v{font-size:1.1rem;font-weight:700}
+    .tw{overflow-x:auto}
+    table{width:100%;border-collapse:collapse;font-size:.8rem}
+    th,td{padding:7px 5px;text-align:right;border-bottom:1px solid var(--border);white-space:nowrap}
+    th{background:#0f172a;color:var(--muted);font-weight:600;position:sticky;top:0}
+    td:first-child,th:first-child,td:nth-child(2),th:nth-child(2){text-align:left}
+    .pos{color:var(--red)}.neg{color:var(--green)}
+    .ss{background:rgba(239,68,68,.15);color:var(--red);font-weight:600}
+    .sb{background:rgba(34,197,94,.15);color:var(--green);font-weight:600}
+    .method{font-size:.82rem;color:var(--muted);line-height:1.65}
+    .method strong{color:var(--text)}
+    .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:.7rem;background:rgba(59,130,246,.2);color:#93c5fd;margin-left:6px}
+    .prog{height:4px;background:#334155;border-radius:2px;margin-top:8px;overflow:hidden;display:none}
+    .bar{height:100%;background:linear-gradient(90deg,#3b82f6,#a855f7);width:0%;transition:width .25s}
+    footer{text-align:center;color:var(--muted);font-size:.75rem;margin-top:24px}
+    .dbinfo{font-size:.78rem;color:var(--muted);margin-top:6px}
+    .tabs{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+    .tab{padding:6px 12px;border-radius:6px;background:#0f172a;border:1px solid var(--border);cursor:pointer;font-size:.82rem;color:var(--muted)}
+    .tab.on{border-color:var(--blue);color:#93c5fd;background:rgba(59,130,246,.15)}
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>双线乖离极值反转 · 浏览器 SQLite</h1>
+  <p class="subtitle">本地 sql.js 存储 K线 / 观察列表 / 分析结果 · 可离线复用 · 支持查询与批量计算</p>
+
+  <div class="card">
+    <h3>① 全局配置 & 本地数据库</h3>
+    <div class="row">
+      <div class="item"><label>数据源</label>
+        <select id="provider">
+          <option value="eastmoney" selected>东方财富</option>
+          <option value="tencent">腾讯财经</option>
+          <option value="sina">新浪财经</option>
+        </select>
+      </div>
+      <div class="item"><label>差值均线</label>
+        <select id="maType">
+          <option value="20">20日线</option>
+          <option value="30">30日线</option>
+          <option value="25">5周≈25日</option>
+          <option value="50">10周≈50日</option>
+          <option value="100">20周≈100日</option>
+          <option value="150">30周≈150日</option>
+        </select>
+      </div>
+      <div class="item"><label>K线数量</label>
+        <select id="days">
+          <option value="120">120</option>
+          <option value="250">250</option>
+          <option value="500">500</option>
+          <option value="1000">1000</option>
+          <option value="0" selected>全部历史</option>
+        </select>
+      </div>
+      <div class="item"><label>缓存优先</label>
+        <select id="cacheMode">
+          <option value="cache" selected>优先用本地库</option>
+          <option value="network">强制重新拉取</option>
+        </select>
+      </div>
+      <div class="item"><label>缓存有效期</label>
+        <select id="cacheTtl">
+          <option value="0">不过期</option>
+          <option value="6">6 小时</option>
+          <option value="12">12 小时</option>
+          <option value="24" selected>1 天</option>
+          <option value="72">3 天</option>
+          <option value="168">7 天</option>
+        </select>
+      </div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="sec" onclick="exportDb()">导出数据库</button>
+      <button class="sec" onclick="document.getElementById('importFile').click()">导入数据库</button>
+      <input type="file" id="importFile" accept=".db,.sqlite,.bin" style="display:none" onchange="importDb(event)">
+      <button class="dang" onclick="resetDb()">清空本地库</button>
+      <span class="dbinfo" id="dbInfo">数据库初始化中…</span>
+    </div>
+    <p class="hint">使用 sql.js（SQLite WASM）。K线与分析结果存本地，同一股票可离线复算；导出文件可备份到其他电脑。</p>
+  </div>
+
+  <div class="card">
+    <h3>② 观察列表</h3>
+    <textarea id="watchInput" placeholder="多个代码，逗号/空格/换行分隔，如：688596, 000001, 600519"></textarea>
+    <div class="row" style="margin-top:8px">
+      <button onclick="saveWatchlist()">保存到列表</button>
+      <button class="sec" onclick="clearWatchlist()">清空列表</button>
+      <button id="batchBtn" onclick="batchAnalyze()">批量分析观察列表</button>
+    </div>
+    <div class="tags" id="watchTags"></div>
+    <div class="prog" id="batchProgress"><div class="bar" id="batchBar"></div></div>
+    <div id="batchStatus" class="status"></div>
+  </div>
+
+  <div class="card">
+    <h3>③ 单票查询</h3>
+    <div class="row">
+      <input type="text" id="stockCode" placeholder="如 688596">
+      <button id="analyzeBtn" onclick="analyzeSingle()">查询并分析</button>
+      <button class="sec" onclick="addCurrentToWatch()">加入观察列表</button>
+    </div>
+    <div id="singleStatus" class="status"></div>
+  </div>
+
+  <div class="card">
+    <h3>④ 本地库查询</h3>
+    <div class="row">
+      <select id="sqlPreset">
+        <option value="stocks">已缓存股票列表</option>
+        <option value="latest_signals">最近分析结果</option>
+        <option value="signals_by_date">按日期区间查信号</option>
+        <option value="buy_signals">仅买入/加仓信号</option>
+        <option value="sell_signals">仅卖出/减仓信号</option>
+        <option value="klines_count">各股K线数量</option>
+        <option value="stale_cache">过期缓存列表</option>
+        <option value="signal_stats">信号统计汇总</option>
+        <option value="ma_compare">同股多均线最近结果</option>
+        <option value="custom">自定义 SQL</option>
+      </select>
+      <button class="sec" onclick="runQuery()">执行查询</button>
+    </div>
+    <div class="row" id="dateRangeRow" style="margin-top:8px;display:none">
+      <div class="item"><label>开始日期</label>
+        <input type="date" id="qDateFrom" style="min-width:140px">
+      </div>
+      <div class="item"><label>结束日期</label>
+        <input type="date" id="qDateTo" style="min-width:140px">
+      </div>
+      <div class="item"><label>代码(可选)</label>
+        <input type="text" id="qCodeFilter" placeholder="如 688596" style="min-width:100px;flex:0">
+      </div>
+    </div>
+    <textarea id="sqlInput" style="margin-top:8px;min-height:52px;display:none" placeholder="SELECT * FROM stocks LIMIT 20"></textarea>
+    <div class="tw" style="margin-top:10px">
+      <table><thead id="qHead"></thead><tbody id="qBody"></tbody></table>
+    </div>
+    <div id="qStatus" class="status"></div>
+  </div>
+
+  <div id="batchResultArea" style="display:none">
+    <div class="card">
+      <h3>批量结果 <span id="batchMeta" class="badge"></span></h3>
+      <div class="tw">
+        <table>
+          <thead><tr>
+            <th>代码</th><th>名称</th><th>收盘</th><th>涨跌%</th>
+            <th>最高-MA</th><th>最低-MA</th><th>收盘-MA</th><th>信号</th><th>来源</th><th></th>
+          </tr></thead>
+          <tbody id="batchBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="resultArea" style="display:none">
+    <div class="card">
+      <h2 id="stockTitle" style="font-size:1.1rem;margin-bottom:12px"></h2>
+      <div class="sum" id="summaryBox"></div>
+    </div>
+    <div class="card">
+      <h3>近30日差值明细</h3>
+      <div class="tw">
+        <table>
+          <thead><tr>
+            <th>日期</th><th>最高</th><th>最低</th><th>收盘</th><th>涨跌</th>
+            <th>MA</th><th>最高-MA</th><th>最低-MA</th><th>收盘-MA</th><th>信号</th>
+          </tr></thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card method">
+    <strong>说明</strong><br>
+    · 浏览器内 SQLite（sql.js）表：<code>stocks</code>、<code>klines</code>、<code>analyses</code>、<code>watchlist</code><br>
+    · 「优先用本地库」+「缓存有效期」：未过期直接算；过期自动重新拉取并写回<br>
+    · 本地查询支持按日期区间筛选信号、买卖信号、过期缓存、信号统计等模板<br>
+    · 顶部/底部信号规则不变；均线可选日线或周线近似周期<br>
+    <em style="color:#64748b">仅供学习，不构成投资建议。</em>
+  </div>
+  <footer>双线乖离极值反转 · sql.js 本地库</footer>
+</div>
+
+<script>
+const IDB_NAME = 'bias_sqlite_v1';
+const IDB_STORE = 'db';
+let SQL = null;
+let db = null;
+
+// ========== SQLite init & persist ==========
+async function initSql() {
+  SQL = await initSqlJs({
+    locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${f}`
+  });
+  const saved = await idbGet();
+  if (saved) {
+    db = new SQL.Database(new Uint8Array(saved));
+  } else {
+    db = new SQL.Database();
+    createSchema();
+  }
+  // 迁移：确保表存在
+  createSchema();
+  updateDbInfo();
+  renderWatchTags();
+}
+
+function createSchema() {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS stocks (
+      code TEXT PRIMARY KEY,
+      market TEXT,
+      name TEXT,
+      updated_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS klines (
+      code TEXT,
+      date TEXT,
+      open REAL, high REAL, low REAL, close REAL, pct REAL,
+      PRIMARY KEY (code, date)
+    );
+    CREATE TABLE IF NOT EXISTS analyses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      code TEXT,
+      ma_period INTEGER,
+      signal TEXT,
+      close REAL,
+      high_diff REAL,
+      low_diff REAL,
+      close_diff REAL,
+      analyzed_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS watchlist (
+      code TEXT PRIMARY KEY
+    );
+    CREATE INDEX IF NOT EXISTS idx_klines_code ON klines(code);
+    CREATE INDEX IF NOT EXISTS idx_analyses_code ON analyses(code);
+  `);
+  persistDb();
+}
+
+function persistDb() {
+  const data = db.export();
+  idbSet(data);
+  updateDbInfo();
+}
+
+function updateDbInfo() {
+  try {
+    const sc = db.exec("SELECT COUNT(*) FROM stocks")[0]?.values[0][0] || 0;
+    const kc = db.exec("SELECT COUNT(*) FROM klines")[0]?.values[0][0] || 0;
+    const wc = db.exec("SELECT COUNT(*) FROM watchlist")[0]?.values[0][0] || 0;
+    document.getElementById('dbInfo').textContent =
+      `本地库：${sc} 只股票 · ${kc} 根K线 · 观察列表 ${wc} 只`;
+  } catch(e) {
+    document.getElementById('dbInfo').textContent = '数据库就绪';
+  }
+}
+
+function idbGet() {
+  return new Promise((resolve) => {
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(IDB_STORE);
+    req.onsuccess = () => {
+      const tx = req.result.transaction(IDB_STORE, 'readonly');
+      const g = tx.objectStore(IDB_STORE).get('main');
+      g.onsuccess = () => resolve(g.result || null);
+      g.onerror = () => resolve(null);
+    };
+    req.onerror = () => resolve(null);
+  });
+}
+function idbSet(data) {
+  return new Promise((resolve) => {
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(IDB_STORE);
+    req.onsuccess = () => {
+      const tx = req.result.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).put(data, 'main');
+      tx.oncomplete = () => resolve();
+    };
+    req.onerror = () => resolve();
+  });
+}
+
+function exportDb() {
+  const data = db.export();
+  const blob = new Blob([data], { type: 'application/octet-stream' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `bias_signals_${new Date().toISOString().slice(0,10)}.sqlite`;
+  a.click();
+}
+function importDb(ev) {
+  const file = ev.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      db = new SQL.Database(new Uint8Array(reader.result));
+      createSchema();
+      persistDb();
+      renderWatchTags();
+      alert('导入成功');
+    } catch(e) { alert('导入失败：' + e.message); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+function resetDb() {
+  if (!confirm('确定清空全部本地 K线与分析结果？')) return;
+  db = new SQL.Database();
+  createSchema();
+  persistDb();
+  renderWatchTags();
+  alert('已清空');
+}
+
+// ========== Watchlist ==========
+function getWatchlist() {
+  try {
+    return db.exec("SELECT code FROM watchlist")[0]?.values.map(r => r[0]) || [];
+  } catch { return []; }
+}
+function setWatchlist(arr) {
+  const unique = [...new Set(arr.map(c => c.trim().toLowerCase()).filter(Boolean))];
+  db.run("DELETE FROM watchlist");
+  const stmt = db.prepare("INSERT OR IGNORE INTO watchlist (code) VALUES (?)");
+  unique.forEach(c => { stmt.run([c]); stmt.reset(); });
+  stmt.free();
+  persistDb();
+  renderWatchTags();
+}
+function renderWatchTags() {
+  const list = getWatchlist();
+  const el = document.getElementById('watchTags');
+  if (!list.length) {
+    el.innerHTML = '<span style="color:var(--muted);font-size:.8rem">暂无股票</span>';
+    return;
+  }
+  el.innerHTML = list.map(c =>
+    `<span class="tag">${c.toUpperCase()}<button onclick="removeFromWatch('${c}')">×</button></span>`
+  ).join('');
+}
+function saveWatchlist() {
+  const raw = document.getElementById('watchInput').value;
+  const codes = raw.split(/[,，\s\n]+/).map(s => s.trim()).filter(Boolean);
+  if (!codes.length) return alert('请输入代码');
+  setWatchlist([...getWatchlist(), ...codes]);
+  document.getElementById('watchInput').value = '';
+}
+function clearWatchlist() {
+  if (confirm('清空观察列表？')) setWatchlist([]);
+}
+function removeFromWatch(code) {
+  setWatchlist(getWatchlist().filter(c => c !== code));
+}
+function addCurrentToWatch() {
+  const code = document.getElementById('stockCode').value.trim();
+  if (!code) return alert('请输入代码');
+  setWatchlist([...getWatchlist(), code]);
+}
+
+// ========== Utils ==========
+function normalizeCode(input) {
+  let code = input.trim().toLowerCase().replace(/[^0-9a-z]/g, '');
+  if (code.startsWith('sh') || code.startsWith('sz'))
+    return { market: code.slice(0,2), pure: code.slice(2) };
+  if (code.startsWith('6') || code.startsWith('5') || code.startsWith('9'))
+    return { market: 'sh', pure: code };
+  return { market: 'sz', pure: code };
+}
+function toSecid(m, p) { return (m === 'sh' ? '1.' : '0.') + p; }
+function calcMA(closes, period) {
+  const mas = new Array(closes.length).fill(null);
+  for (let i = period - 1; i < closes.length; i++) {
+    let s = 0;
+    for (let j = 0; j < period; j++) s += closes[i - j];
+    mas[i] = s / period;
+  }
+  return mas;
+}
+function formatNum(n, d=2) {
+  if (n == null || isNaN(n)) return '—';
+  return Number(n).toFixed(d);
+}
+function getMaPeriod() { return +document.getElementById('maType').value || 20; }
+function getMaLabel() {
+  return ({20:'20日线',30:'30日线',25:'5周线',50:'10周线',100:'20周线',150:'30周线'})[getMaPeriod()] || 'MA';
+}
+function effectiveLimit() {
+  const raw = document.getElementById('days').value;
+  const ma = getMaPeriod();
+  if (raw === '0') return Math.max(5000, ma + 100);
+  return Math.max(+raw || 120, ma + 40, 80);
+}
+
+// ========== Network fetchers ==========
+async function fetchEastmoney(market, pure, limit) {
+  const secid = toSecid(market, pure);
+  const url = `https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61&klt=101&fqt=1&beg=0&end=20500101&lmt=${limit}`;
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error('东方财富请求失败');
+  const json = await resp.json();
+  if (!json.data || !json.data.klines)
+    throw new Error('东方财富未返回K线（检查代码或换源）');
+  if (json.data.klines.length < 30)
+    throw new Error(`仅返回 ${json.data.klines.length} 根K线`);
+  const name = json.data.name || pure;
+  const list = json.data.klines.map(line => {
+    const p = line.split(',');
+    return { date:p[0], open:+p[1], close:+p[2], high:+p[3], low:+p[4], pct:+p[8]||0 };
+  });
+  return { name, list };
+}
+async function fetchTencent(market, pure, limit) {
+  const symbol = market + pure;
+  const tlimit = Math.min(limit, 2000);
+  const url = `https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${symbol},day,,,${tlimit},qfq`;
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error('腾讯请求失败');
+  const json = await resp.json();
+  const key = Object.keys(json.data || {})[0];
+  if (!key) throw new Error('腾讯无数据');
+  const dayData = json.data[key].qfqday || json.data[key].day;
+  if (!dayData || dayData.length < 30) throw new Error('腾讯数据不足');
+  const list = dayData.map(p => ({ date:p[0], open:+p[1], close:+p[2], high:+p[3], low:+p[4], pct:0 }));
+  for (let i=1;i<list.length;i++)
+    list[i].pct = ((list[i].close - list[i-1].close) / list[i-1].close) * 100;
+  let name = pure;
+  try { if (json.data[key].qt?.[symbol]) name = json.data[key].qt[symbol][1] || pure; } catch(e){}
+  return { name, list };
+}
+async function fetchSina(market, pure, limit) {
+  const symbol = market + pure;
+  const url = `https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_MarketData.getKLineData?symbol=${symbol}&scale=240&ma=no&datalen=${Math.min(limit,1023)}`;
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error('新浪请求失败');
+  const data = JSON.parse(await resp.text());
+  if (!Array.isArray(data) || data.length < 30) throw new Error('新浪数据不足');
+  const list = data.map(p => ({ date:p.day, open:+p.open, high:+p.high, low:+p.low, close:+p.close, pct:0 }));
+  for (let i=1;i<list.length;i++)
+    list[i].pct = ((list[i].close - list[i-1].close) / list[i-1].close) * 100;
+  return { name: pure, list };
+}
+async function fetchKlines(provider, market, pure, limit) {
+  if (provider === 'eastmoney') return fetchEastmoney(market, pure, limit);
+  if (provider === 'tencent') return fetchTencent(market, pure, limit);
+  if (provider === 'sina') return fetchSina(market, pure, limit);
+  throw new Error('未知数据源');
+}
+
+// ========== Save / load Klines from SQLite ==========
+function saveKlinesToDb(code, market, name, list) {
+  db.run("INSERT OR REPLACE INTO stocks (code, market, name, updated_at) VALUES (?,?,?,?)",
+    [code, market, name, new Date().toISOString()]);
+  const stmt = db.prepare(
+    "INSERT OR REPLACE INTO klines (code, date, open, high, low, close, pct) VALUES (?,?,?,?,?,?,?)"
+  );
+  db.run("BEGIN");
+  list.forEach(r => {
+    stmt.run([code, r.date, r.open, r.high, r.low, r.close, r.pct]);
+    stmt.reset();
+  });
+  db.run("COMMIT");
+  stmt.free();
+  persistDb();
+}
+
+function loadKlinesFromDb(code) {
+  const res = db.exec(
+    "SELECT date, open, high, low, close, pct FROM klines WHERE code=? ORDER BY date ASC",
+    [code]
+  );
+  if (!res.length || !res[0].values.length) return null;
+  return res[0].values.map(r => ({
+    date: r[0], open: r[1], high: r[2], low: r[3], close: r[4], pct: r[5]
+  }));
+}
+
+function getStockMeta(code) {
+  const res = db.exec("SELECT market, name, updated_at FROM stocks WHERE code=?", [code]);
+  if (!res.length) return null;
+  const r = res[0].values[0];
+  return { market: r[0], name: r[1], updated_at: r[2] };
+}
+
+function saveAnalysis(code, maPeriod, ov, latest) {
+  db.run(
+    `INSERT INTO analyses (code, ma_period, signal, close, high_diff, low_diff, close_diff, analyzed_at)
+     VALUES (?,?,?,?,?,?,?,?)`,
+    [code, maPeriod, ov.text, latest.close, latest.highDiff, latest.lowDiff, latest.closeDiff,
+     new Date().toISOString()]
+  );
+  persistDb();
+}
+
+// ========== Signal logic ==========
+function generateSignals(rows, maPeriod) {
+  const n = rows.length;
+  if (n < maPeriod + 5)
+    return rows.map(r => ({ ...r, signal: '数据不足', signalClass: '' }));
+
+  const recent = rows.slice(-Math.min(30, n));
+  let maxH = -Infinity, minL = Infinity;
+  recent.forEach(r => {
+    if (r.highDiff != null) maxH = Math.max(maxH, r.highDiff);
+    if (r.lowDiff != null) minL = Math.min(minL, r.lowDiff);
+  });
+  const lastClose = rows[n-1].close;
+  const extremePos = Math.max(lastClose * 0.08, 3);
+  const extremeNeg = -Math.max(lastClose * 0.08, 3);
+
+  return rows.map((r, i) => {
+    if (i < maPeriod - 1) return { ...r, signal: '—', signalClass: '' };
+    let signal = '观望', signalClass = '';
+    const wasPos = maxH > extremePos;
+    const shrink = wasPos && r.highDiff < maxH * 0.7;
+    const wasNeg = minL < extremeNeg;
+    const conv = wasNeg && r.lowDiff > minL * 0.7 && r.lowDiff < extremeNeg * 0.5;
+    if (i >= n - 8) {
+      if (shrink || (r.highDiff > extremePos && r.closeDiff < r.highDiff * 0.6)) {
+        signal = '减仓/卖出'; signalClass = 'ss';
+      } else if (conv || (r.lowDiff < extremeNeg && r.closeDiff > r.lowDiff * 0.6)) {
+        signal = '加仓/买入'; signalClass = 'sb';
+      } else if (r.highDiff > extremePos * 0.5) {
+        signal = '高位警惕'; signalClass = 'ss';
+      } else if (r.lowDiff < extremeNeg * 0.5) {
+        signal = '低位关注'; signalClass = 'sb';
+      }
+    }
+    return { ...r, signal, signalClass };
+  });
+}
+
+function processData(list, maPeriod) {
+  const closes = list.map(r => r.close);
+  const ma = calcMA(closes, maPeriod);
+  let rows = list.map((r, i) => {
+    const m = ma[i];
+    return {
+      ...r, ma: m,
+      highDiff: m != null ? r.high - m : null,
+      lowDiff: m != null ? r.low - m : null,
+      closeDiff: m != null ? r.close - m : null
+    };
+  });
+  return generateSignals(rows, maPeriod);
+}
+
+function overallSignal(rows) {
+  const latest = rows[rows.length - 1];
+  const recent5 = rows.slice(-5);
+  const sellN = recent5.filter(r => /减仓|卖出|警惕/.test(r.signal)).length;
+  const buyN = recent5.filter(r => /加仓|买入|关注/.test(r.signal)).length;
+  if (sellN >= 2 || /减仓|卖出/.test(latest.signal))
+    return { text: '建议减仓/卖出', cls: 'sell', reason: '正差值从极值回落或收盘差值缩小' };
+  if (buyN >= 2 || /加仓|买入/.test(latest.signal))
+    return { text: '建议加仓/买入', cls: 'buy', reason: '负差值极值后收敛，收盘差值改善' };
+  return { text: '建议观望', cls: '', reason: '未进入明确极值区或处于中继' };
+}
+
+// ========== Get data: cache or network ==========
+function isCacheFresh(updatedAtIso) {
+  const ttlH = +document.getElementById('cacheTtl').value;
+  if (!ttlH || ttlH <= 0) return true; // 不过期
+  if (!updatedAtIso) return false;
+  const ageMs = Date.now() - new Date(updatedAtIso).getTime();
+  return ageMs < ttlH * 3600 * 1000;
+}
+
+async function getStockData(market, pure, limit) {
+  const code = pure;
+  const cacheMode = document.getElementById('cacheMode').value;
+  const maPeriod = getMaPeriod();
+
+  if (cacheMode === 'cache') {
+    const cached = loadKlinesFromDb(code);
+    const meta = getStockMeta(code);
+    if (cached && cached.length >= maPeriod + 5 && meta && isCacheFresh(meta.updated_at)) {
+      return { name: meta.name || pure, list: cached, from: '本地库' };
+    }
+    // 有缓存但过期：标记为将刷新
+  }
+
+  const provider = document.getElementById('provider').value;
+  const { name, list } = await fetchKlines(provider, market, pure, limit);
+  saveKlinesToDb(code, market, name, list);
+  return { name, list, from: cacheMode === 'cache' ? '网络(缓存已刷新)' : '网络' };
+}
+
+// ========== Single analyze ==========
+async function analyzeSingle() {
+  const input = document.getElementById('stockCode').value;
+  const statusEl = document.getElementById('singleStatus');
+  const btn = document.getElementById('analyzeBtn');
+  if (!input.trim()) {
+    statusEl.className = 'status err'; statusEl.textContent = '请输入代码'; return;
+  }
+  const { market, pure } = normalizeCode(input);
+  if (pure.length < 6) {
+    statusEl.className = 'status err'; statusEl.textContent = '代码格式错误'; return;
+  }
+
+  const maPeriod = getMaPeriod();
+  const limit = effectiveLimit();
+  btn.disabled = true;
+  statusEl.className = 'status load';
+  statusEl.textContent = `获取中（均线 ${maPeriod}，请求约 ${limit} 根）…`;
+  document.getElementById('resultArea').style.display = 'none';
+
+  try {
+    const { name, list, from } = await getStockData(market, pure, limit);
+    if (list.length < maPeriod + 5) {
+      throw new Error(`K线不足：实际 ${list.length} 根，需 ≥ ${maPeriod + 5}。请选「全部历史」或更短均线。`);
+    }
+    const rows = processData(list, maPeriod);
+    const display = rows.slice(-30).reverse();
+    const latest = rows[rows.length - 1];
+    const ov = overallSignal(rows);
+    const maLabel = getMaLabel();
+    saveAnalysis(pure, maPeriod, ov, latest);
+
+    document.getElementById('tableBody').innerHTML = display.map(r => {
+      const c = r.pct >= 0 ? 'pos' : 'neg';
+      return `<tr>
+        <td>${r.date}</td><td>${formatNum(r.high)}</td><td>${formatNum(r.low)}</td>
+        <td class="${c}">${formatNum(r.close)}</td>
+        <td class="${c}">${r.pct>=0?'+':''}${formatNum(r.pct)}%</td>
+        <td>${formatNum(r.ma)}</td>
+        <td class="${r.highDiff>0?'pos':'neg'}">${formatNum(r.highDiff)}</td>
+        <td class="${r.lowDiff>0?'pos':'neg'}">${formatNum(r.lowDiff)}</td>
+        <td class="${r.closeDiff>0?'pos':'neg'}">${formatNum(r.closeDiff)}</td>
+        <td class="${r.signalClass}">${r.signal}</td>
+      </tr>`;
+    }).join('');
+
+    document.getElementById('stockTitle').innerHTML =
+      `${name}（${market.toUpperCase()}${pure}）<span class="badge">${from} · ${maLabel} · ${list.length}根</span>`;
+    document.getElementById('summaryBox').innerHTML = `
+      <div class="si ${ov.cls}"><h4>综合信号</h4><div class="v">${ov.text}</div></div>
+      <div class="si"><h4>最新收盘</h4><div class="v">${formatNum(latest.close)}</div></div>
+      <div class="si"><h4>最高-${maLabel}</h4><div class="v ${latest.highDiff>0?'pos':'neg'}">${formatNum(latest.highDiff)}</div></div>
+      <div class="si"><h4>最低-${maLabel}</h4><div class="v ${latest.lowDiff>0?'pos':'neg'}">${formatNum(latest.lowDiff)}</div></div>
+      <div class="si"><h4>收盘-${maLabel}</h4><div class="v ${latest.closeDiff>0?'pos':'neg'}">${formatNum(latest.closeDiff)}</div></div>
+      <div class="si"><h4>依据</h4><div style="font-size:.88rem">${ov.reason}</div></div>`;
+
+    document.getElementById('resultArea').style.display = 'block';
+    statusEl.className = 'status ok';
+    statusEl.textContent = `成功 · ${from} · ${list.length} 根K线 · 已写入本地库`;
+    updateDbInfo();
+  } catch (err) {
+    statusEl.className = 'status err';
+    statusEl.innerHTML = `失败：${err.message}`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ========== Batch ==========
+async function batchAnalyze() {
+  const list = getWatchlist();
+  if (!list.length) {
+    document.getElementById('batchStatus').className = 'status err';
+    document.getElementById('batchStatus').textContent = '观察列表为空';
+    return;
+  }
+  const maPeriod = getMaPeriod();
+  const limit = effectiveLimit();
+  const maLabel = getMaLabel();
+  const btn = document.getElementById('batchBtn');
+  const statusEl = document.getElementById('batchStatus');
+  const progress = document.getElementById('batchProgress');
+  const bar = document.getElementById('batchBar');
+  const batchBody = document.getElementById('batchBody');
+
+  btn.disabled = true;
+  progress.style.display = 'block';
+  bar.style.width = '0%';
+  statusEl.className = 'status load';
+  batchBody.innerHTML = '';
+  document.getElementById('batchResultArea').style.display = 'none';
+
+  const results = [];
+  for (let i = 0; i < list.length; i++) {
+    const code = list[i];
+    statusEl.textContent = `分析 ${i+1}/${list.length}：${code.toUpperCase()}`;
+    bar.style.width = `${(i/list.length)*100}%`;
+    try {
+      const { market, pure } = normalizeCode(code);
+      const { name, list: klist, from } = await getStockData(market, pure, limit);
+      if (klist.length < maPeriod + 5) throw new Error(`仅${klist.length}根`);
+      const rows = processData(klist, maPeriod);
+      const latest = rows[rows.length - 1];
+      const ov = overallSignal(rows);
+      saveAnalysis(pure, maPeriod, ov, latest);
+      results.push({ code: pure, market, name, latest, ov, from, ok: true });
+    } catch (e) {
+      results.push({ code, market:'', name:'—', latest:null, ov:{text:'失败:'+e.message,cls:''}, from:'—', ok:false });
+    }
+    await new Promise(r => setTimeout(r, 200));
+  }
+
+  bar.style.width = '100%';
+  batchBody.innerHTML = results.map(r => {
+    if (!r.ok) {
+      return `<tr><td>${String(r.code).toUpperCase()}</td><td>—</td><td colspan="6" class="ss">${r.ov.text}</td><td>—</td><td></td></tr>`;
+    }
+    const c = r.latest.pct >= 0 ? 'pos' : 'neg';
+    return `<tr>
+      <td>${r.market.toUpperCase()}${r.code}</td><td>${r.name}</td>
+      <td class="${c}">${formatNum(r.latest.close)}</td>
+      <td class="${c}">${r.latest.pct>=0?'+':''}${formatNum(r.latest.pct)}%</td>
+      <td class="${r.latest.highDiff>0?'pos':'neg'}">${formatNum(r.latest.highDiff)}</td>
+      <td class="${r.latest.lowDiff>0?'pos':'neg'}">${formatNum(r.latest.lowDiff)}</td>
+      <td class="${r.latest.closeDiff>0?'pos':'neg'}">${formatNum(r.latest.closeDiff)}</td>
+      <td class="${r.ov.cls==='sell'?'ss':r.ov.cls==='buy'?'sb':''}">${r.ov.text}</td>
+      <td>${r.from}</td>
+      <td><button class="sec" style="padding:3px 8px;font-size:.75rem"
+        onclick="document.getElementById('stockCode').value='${r.market}${r.code}';analyzeSingle()">详情</button></td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('batchMeta').textContent = `${maLabel} · ${results.length}只`;
+  document.getElementById('batchResultArea').style.display = 'block';
+  statusEl.className = 'status ok';
+  statusEl.textContent = `完成：成功 ${results.filter(r=>r.ok).length}/${results.length}（结果已写入本地库）`;
+  btn.disabled = false;
+  updateDbInfo();
+  setTimeout(() => { progress.style.display = 'none'; }, 600);
+}
+
+// ========== SQL query UI ==========
+document.getElementById('sqlPreset').addEventListener('change', function() {
+  const v = this.value;
+  document.getElementById('sqlInput').style.display = v === 'custom' ? 'block' : 'none';
+  document.getElementById('dateRangeRow').style.display =
+    (v === 'signals_by_date' || v === 'buy_signals' || v === 'sell_signals') ? 'flex' : 'none';
+});
+
+function escapeSql(s) {
+  return String(s || '').replace(/'/g, "''");
+}
+
+function buildPresetSql(preset) {
+  const from = document.getElementById('qDateFrom').value;
+  const to = document.getElementById('qDateTo').value;
+  const code = document.getElementById('qCodeFilter').value.trim().toLowerCase().replace(/[^0-9a-z]/g,'');
+  const pure = code.startsWith('sh') || code.startsWith('sz') ? code.slice(2) : code;
+
+  const dateCond = [];
+  if (from) dateCond.push(`date(analyzed_at) >= '${escapeSql(from)}'`);
+  if (to) dateCond.push(`date(analyzed_at) <= '${escapeSql(to)}'`);
+  const codeCond = pure ? `code = '${escapeSql(pure)}'` : '';
+  const whereParts = [...dateCond, codeCond].filter(Boolean);
+  const where = whereParts.length ? ' WHERE ' + whereParts.join(' AND ') : '';
+
+  if (preset === 'stocks')
+    return `SELECT code, market, name, updated_at,
+      (SELECT COUNT(*) FROM klines k WHERE k.code=s.code) AS kline_cnt
+      FROM stocks s ORDER BY updated_at DESC`;
+  if (preset === 'latest_signals')
+    return `SELECT code, ma_period, signal, close, high_diff, low_diff, close_diff, analyzed_at
+      FROM analyses ORDER BY analyzed_at DESC LIMIT 50`;
+  if (preset === 'signals_by_date')
+    return `SELECT code, ma_period, signal, close, high_diff, low_diff, close_diff, analyzed_at
+      FROM analyses${where} ORDER BY analyzed_at DESC LIMIT 200`;
+  if (preset === 'buy_signals') {
+    const extra = `(signal LIKE '%加仓%' OR signal LIKE '%买入%' OR signal LIKE '%关注%')`;
+    const w = whereParts.length ? where + ' AND ' + extra : ' WHERE ' + extra;
+    return `SELECT code, ma_period, signal, close, high_diff, low_diff, close_diff, analyzed_at
+      FROM analyses${w} ORDER BY analyzed_at DESC LIMIT 100`;
+  }
+  if (preset === 'sell_signals') {
+    const extra = `(signal LIKE '%减仓%' OR signal LIKE '%卖出%' OR signal LIKE '%警惕%')`;
+    const w = whereParts.length ? where + ' AND ' + extra : ' WHERE ' + extra;
+    return `SELECT code, ma_period, signal, close, high_diff, low_diff, close_diff, analyzed_at
+      FROM analyses${w} ORDER BY analyzed_at DESC LIMIT 100`;
+  }
+  if (preset === 'klines_count')
+    return `SELECT code, COUNT(*) AS cnt, MIN(date) AS first_day, MAX(date) AS last_day
+      FROM klines GROUP BY code ORDER BY cnt DESC`;
+  if (preset === 'stale_cache') {
+    const ttlH = +document.getElementById('cacheTtl').value || 24;
+    // SQLite datetime: compare updated_at older than ttl
+    return `SELECT code, market, name, updated_at,
+      ROUND((julianday('now') - julianday(updated_at)) * 24, 1) AS age_hours
+      FROM stocks
+      WHERE updated_at IS NULL OR (julianday('now') - julianday(updated_at)) * 24 > ${ttlH}
+      ORDER BY updated_at ASC`;
+  }
+  if (preset === 'signal_stats')
+    return `SELECT signal, COUNT(*) AS cnt,
+      ROUND(AVG(close),2) AS avg_close,
+      ROUND(AVG(high_diff),2) AS avg_high_diff,
+      ROUND(AVG(low_diff),2) AS avg_low_diff
+      FROM analyses GROUP BY signal ORDER BY cnt DESC`;
+  if (preset === 'ma_compare')
+    return `SELECT code, ma_period, signal, close, high_diff, low_diff, close_diff, analyzed_at
+      FROM analyses
+      WHERE id IN (SELECT MAX(id) FROM analyses GROUP BY code, ma_period)
+      ORDER BY code, ma_period`;
+  return document.getElementById('sqlInput').value.trim();
+}
+
+function runQuery() {
+  const preset = document.getElementById('sqlPreset').value;
+  const sql = buildPresetSql(preset);
+  const qStatus = document.getElementById('qStatus');
+  const qHead = document.getElementById('qHead');
+  const qBody = document.getElementById('qBody');
+  if (!sql) { qStatus.className='status err'; qStatus.textContent='请输入 SQL'; return; }
+
+  try {
+    const res = db.exec(sql);
+    if (!res.length) {
+      qHead.innerHTML = ''; qBody.innerHTML = '';
+      qStatus.className = 'status ok'; qStatus.textContent = '查询成功，无行返回';
+      return;
+    }
+    const cols = res[0].columns;
+    qHead.innerHTML = '<tr>' + cols.map(c => `<th>${c}</th>`).join('') + '</tr>';
+    qBody.innerHTML = res[0].values.map(row =>
+      '<tr>' + row.map(v => `<td>${v == null ? '—' : v}</td>`).join('') + '</tr>'
+    ).join('');
+    qStatus.className = 'status ok';
+    qStatus.textContent = `返回 ${res[0].values.length} 行`;
+  } catch (e) {
+    qStatus.className = 'status err';
+    qStatus.textContent = 'SQL 错误：' + e.message;
+  }
+}
+
+document.getElementById('stockCode').addEventListener('keydown', e => {
+  if (e.key === 'Enter') analyzeSingle();
+});
+
+// boot
+(function initDates() {
+  const to = new Date();
+  const from = new Date(); from.setDate(from.getDate() - 30);
+  const fmt = d => d.toISOString().slice(0,10);
+  const elF = document.getElementById('qDateFrom');
+  const elT = document.getElementById('qDateTo');
+  if (elF) elF.value = fmt(from);
+  if (elT) elT.value = fmt(to);
+})();
+initSql().catch(e => {
+  document.getElementById('dbInfo').textContent = 'SQLite 初始化失败：' + e.message + '（请检查网络加载 sql.js）';
+});
+</script>
+</body>
+</html>
