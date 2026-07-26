@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>双线乖离极值反转交易系统 - 多股票观察列表</title>
+  <style>
+    :root {
+      --bg: #0f172a; --card: #1e293b; --border: #334155; --text: #e2e8f0;
+      --muted: #94a3b8; --red: #ef4444; --green: #22c55e; --yellow: #eab308;
+      --blue: #3b82f6; --purple: #a855f7;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--bg); color: var(--text); line-height: 1.6; padding: 20px; min-height: 100vh;
+    }
+    .container { max-width: 1500px; margin: 0 auto; }
+    h1 {
+      font-size: 1.55rem; margin-bottom: 6px;
+      background: linear-gradient(90deg, #60a5fa, #a78bfa);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .subtitle { color: var(--muted); font-size: 0.88rem; margin-bottom: 20px; }
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 18px; margin-bottom: 18px;
+    }
+    .card h3 { font-size: 1rem; margin-bottom: 12px; color: #cbd5e1; }
+    .input-row, .config-row {
+      display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+    }
+    .config-row { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+    input[type="text"], select, textarea {
+      padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px;
+      background: #0f172a; color: var(--text); font-size: 0.95rem;
+    }
+    input[type="text"] { flex: 1; min-width: 160px; }
+    select { min-width: 150px; cursor: pointer; }
+    textarea {
+      width: 100%; min-height: 72px; resize: vertical; font-family: inherit;
+      line-height: 1.5;
+    }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--blue); }
+    button {
+      padding: 10px 18px; background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      color: white; border: none; border-radius: 8px; font-size: 0.95rem;
+      cursor: pointer; font-weight: 600; transition: opacity 0.2s;
+    }
+    button:hover { opacity: 0.9; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button.secondary { background: #334155; }
+    button.danger { background: #7f1d1d; }
+    .hint { font-size: 0.82rem; color: var(--muted); margin-top: 8px; }
+    .status { margin-top: 10px; font-size: 0.88rem; }
+    .status.error { color: var(--red); }
+    .status.loading { color: var(--yellow); }
+    .status.ok { color: var(--green); }
+    .config-item { display: flex; align-items: center; gap: 6px; font-size: 0.88rem; }
+    .config-item label { color: var(--muted); white-space: nowrap; }
+    .provider-desc { font-size: 0.78rem; color: var(--muted); margin-top: 6px; }
+    .watch-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .tag {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: #0f172a; border: 1px solid var(--border);
+      border-radius: 999px; padding: 4px 10px 4px 12px; font-size: 0.85rem;
+    }
+    .tag button {
+      padding: 0 4px; background: transparent; color: var(--muted);
+      font-size: 1rem; line-height: 1;
+    }
+    .tag button:hover { color: var(--red); }
+    .summary {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px; margin-bottom: 16px;
+    }
+    .summary-item {
+      background: #0f172a; border-radius: 8px; padding: 14px;
+      border-left: 4px solid var(--blue);
+    }
+    .summary-item.sell { border-left-color: var(--red); }
+    .summary-item.buy { border-left-color: var(--green); }
+    .summary-item h4 { font-size: 0.8rem; color: var(--muted); margin-bottom: 4px; }
+    .summary-item .value { font-size: 1.15rem; font-weight: 700; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    th, td {
+      padding: 8px 6px; text-align: right; border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    th { background: #0f172a; color: var(--muted); font-weight: 600; position: sticky; top: 0; }
+    td:first-child, th:first-child, td:nth-child(2), th:nth-child(2) { text-align: left; }
+    .pos { color: var(--red); }
+    .neg { color: var(--green); }
+    .signal-sell { background: rgba(239,68,68,0.15); color: var(--red); font-weight: 600; }
+    .signal-buy { background: rgba(34,197,94,0.15); color: var(--green); font-weight: 600; }
+    .method-box { font-size: 0.86rem; color: var(--muted); line-height: 1.7; }
+    .method-box strong { color: var(--text); }
+    .provider-badge {
+      display: inline-block; padding: 2px 8px; border-radius: 999px;
+      font-size: 0.72rem; background: rgba(59,130,246,0.2); color: #93c5fd; margin-left: 6px;
+    }
+    .batch-progress {
+      height: 4px; background: #334155; border-radius: 2px; margin-top: 10px; overflow: hidden;
+    }
+    .batch-progress-bar {
+      height: 100%; background: linear-gradient(90deg, #3b82f6, #a855f7);
+      width: 0%; transition: width 0.3s;
+    }
+    footer { text-align: center; color: var(--muted); font-size: 0.78rem; margin-top: 28px; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>双线乖离极值反转交易系统</h1>
+    <p class="subtitle">观察列表批量分析 · 可配置日线/周线均线 · 最高/最低/收盘价差值 · 买卖信号建议</p>
+
+    <!-- 配置与数据源 -->
+    <div class="card">
+      <h3>① 全局配置</h3>
+      <div class="config-row" style="margin-top:0;padding-top:0;border:none;">
+        <div class="config-item">
+          <label>数据源</label>
+          <select id="provider">
+            <option value="eastmoney" selected>东方财富（推荐）</option>
+            <option value="tencent">腾讯财经</option>
+            <option value="sina">新浪财经</option>
+          </select>
+        </div>
+        <div class="config-item">
+          <label>差值均线</label>
+          <select id="maType">
+            <option value="20">20日线</option>
+            <option value="30">30日线</option>
+            <option value="25">5周线（≈25日）</option>
+            <option value="50">10周线（≈50日）</option>
+            <option value="100">20周线（≈100日）</option>
+            <option value="150">30周线（≈150日）</option>
+          </select>
+        </div>
+        <div class="config-item">
+          <label>K线数量</label>
+          <select id="days">
+            <option value="60">60</option>
+            <option value="90">90</option>
+            <option value="120" selected>120</option>
+            <option value="180">180</option>
+            <option value="250">250</option>
+          </select>
+        </div>
+      </div>
+      <p class="provider-desc" id="providerDesc">东方财富：数据完整，科创板支持好。周线采用交易日近似（5周≈25日、10周≈50日等）。</p>
+    </div>
+
+    <!-- 观察列表 -->
+    <div class="card">
+      <h3>② 观察列表（本地保存，每日一点批量分析）</h3>
+      <textarea id="watchInput" placeholder="输入多个股票代码，用逗号、空格或换行分隔&#10;例如：688596, 000001, 600519, 300750"></textarea>
+      <div class="input-row" style="margin-top:10px;">
+        <button onclick="saveWatchlist()">保存到观察列表</button>
+        <button class="secondary" onclick="clearWatchlist()">清空列表</button>
+        <button onclick="batchAnalyze()" id="batchBtn">批量分析观察列表</button>
+      </div>
+      <div class="watch-tags" id="watchTags"></div>
+      <p class="hint">列表保存在浏览器本地（localStorage），换电脑需重新添加。建议每日收盘后点一次「批量分析」。</p>
+      <div class="batch-progress" id="batchProgress" style="display:none;"><div class="batch-progress-bar" id="batchBar"></div></div>
+      <div id="batchStatus" class="status"></div>
+    </div>
+
+    <!-- 单票快速查询 -->
+    <div class="card">
+      <h3>③ 单票快速查询</h3>
+      <div class="input-row">
+        <input type="text" id="stockCode" placeholder="单个代码，如 688596" value="">
+        <button id="analyzeBtn" onclick="analyzeSingle()">查询并分析</button>
+        <button class="secondary" onclick="addCurrentToWatch()">加入观察列表</button>
+      </div>
+      <div id="singleStatus" class="status"></div>
+    </div>
+
+    <!-- 批量结果汇总 -->
+    <div id="batchResultArea" style="display:none;">
+      <div class="card">
+        <h3>批量分析结果汇总 <span id="batchMeta" class="provider-badge"></span></h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>代码</th>
+                <th>名称</th>
+                <th>最新收盘</th>
+                <th>涨跌%</th>
+                <th>最高-MA</th>
+                <th>最低-MA</th>
+                <th>收盘-MA</th>
+                <th>综合信号</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="batchBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 单票详细结果 -->
+    <div id="resultArea" style="display:none;">
+      <div class="card">
+        <h2 id="stockTitle" style="margin-bottom:14px;font-size:1.15rem;"></h2>
+        <div class="summary" id="summaryBox"></div>
+      </div>
+      <div class="card">
+        <h3>近30个交易日差值明细（基于所选均线）</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>日期</th>
+                <th>最高</th>
+                <th>最低</th>
+                <th>收盘</th>
+                <th>涨跌</th>
+                <th>MA</th>
+                <th>最高-MA</th>
+                <th>最低-MA</th>
+                <th>收盘-MA</th>
+                <th>信号建议</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card method-box">
+      <strong>方法核心规则</strong><br>
+      1. <strong>顶部</strong>：最高价与所选均线的正差值达极值后缩小，且收盘差值同步缩小 → 减仓/卖出。<br>
+      2. <strong>底部</strong>：最低价与所选均线的负差值达极值后收敛，且收盘差值同步收敛 → 加仓/买入。<br>
+      3. 周线均线用交易日近似：5周≈25日、10周≈50日、20周≈100日、30周≈150日（请选择足够的K线数量）。<br>
+      4. 观察列表本地持久化，适合每日收盘后一键批量复盘。<br>
+      <em style="color:#64748b;">仅供学习参考，不构成投资建议。</em>
+    </div>
+    <footer>双线乖离极值反转交易系统 · 多数据源 · 观察列表 · 可配置均线</footer>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'bias_watchlist_v1';
+    const PROVIDER_DESC = {
+      eastmoney: '东方财富：数据完整，科创板支持好，推荐首选。',
+      tencent: '腾讯财经：接口较稳定，CORS 友好。',
+      sina: '新浪财经：经典源，部分环境可能有 CORS 限制。'
+    };
+
+    document.getElementById('provider').addEventListener('change', function () {
+      document.getElementById('providerDesc').textContent = PROVIDER_DESC[this.value] || '';
+    });
+
+    // ---------- 观察列表 ----------
+    function getWatchlist() {
+      try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      } catch { return []; }
+    }
+    function setWatchlist(arr) {
+      const unique = [...new Set(arr.map(c => c.trim().toLowerCase()).filter(Boolean))];
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(unique));
+      renderWatchTags();
+    }
+    function renderWatchTags() {
+      const list = getWatchlist();
+      const el = document.getElementById('watchTags');
+      if (!list.length) {
+        el.innerHTML = '<span style="color:var(--muted);font-size:0.85rem;">暂无股票，请在上方输入后保存</span>';
+        return;
+      }
+      el.innerHTML = list.map(code => `
+        <span class="tag">${code.toUpperCase()}
+          <button onclick="removeFromWatch('${code}')" title="移除">×</button>
+        </span>`).join('');
+    }
+    function saveWatchlist() {
+      const raw = document.getElementById('watchInput').value;
+      const codes = raw.split(/[,，\s\n]+/).map(s => s.trim()).filter(Boolean);
+      if (!codes.length) { alert('请输入至少一个代码'); return; }
+      const existing = getWatchlist();
+      setWatchlist([...existing, ...codes]);
+      document.getElementById('watchInput').value = '';
+    }
+    function clearWatchlist() {
+      if (confirm('确定清空观察列表？')) setWatchlist([]);
+    }
+    function removeFromWatch(code) {
+      setWatchlist(getWatchlist().filter(c => c !== code));
+    }
+    function addCurrentToWatch() {
+      const code = document.getElementById('stockCode').value.trim();
+      if (!code) { alert('请先输入代码'); return; }
+      setWatchlist([...getWatchlist(), code]);
+    }
+    renderWatchTags();
+
+    // ---------- 工具 ----------
+    function normalizeCode(input) {
+      let code = input.trim().toLowerCase().replace(/[^0-9a-z]/g, '');
+      if (code.startsWith('sh') || code.startsWith('sz')) {
+        return { market: code.slice(0, 2), pure: code.slice(2) };
+      }
+      if (code.startsWith('6') || code.startsWith('5') || code.startsWith('9')) {
+        return { market: 'sh', pure: code };
+      }
+      return { market: 'sz', pure: code };
+    }
+    function toSecid(market, pure) {
+      return (market === 'sh' ? '1.' : '0.') + pure;
+    }
+    function calcMA(closes, period) {
+      const mas = new Array(closes.length).fill(null);
+      for (let i = period - 1; i < closes.length; i++) {
+        let sum = 0;
+        for (let j = 0; j < period; j++) sum += closes[i - j];
+        mas[i] = sum / period;
+      }
+      return mas;
+    }
+    function formatNum(n, d = 2) {
+      if (n == null || isNaN(n)) return '—';
+      return Number(n).toFixed(d);
+    }
+    function getMaPeriod() {
+      return parseInt(document.getElementById('maType').value, 10) || 20;
+    }
+    function getMaLabel() {
+      const map = { 20: '20日线', 30: '30日线', 25: '5周线', 50: '10周线', 100: '20周线', 150: '30周线' };
+      return map[getMaPeriod()] || 'MA';
+    }
+
+    // ---------- 数据源 ----------
+    async function fetchEastmoney(market, pure, limit) {
+      const secid = toSecid(market, pure);
+      const url = `https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61&klt=101&fqt=1&end=20500101&lmt=${limit}`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error('东方财富请求失败');
+      const json = await resp.json();
+      if (!json.data || !json.data.klines || json.data.klines.length < 30)
+        throw new Error('数据不足');
+      const name = json.data.name || pure;
+      const list = json.data.klines.map(line => {
+        const p = line.split(',');
+        return {
+          date: p[0], open: +p[1], close: +p[2], high: +p[3], low: +p[4], pct: +p[8] || 0
+        };
+      });
+      return { name, list };
+    }
+    async function fetchTencent(market, pure, limit) {
+      const symbol = market + pure;
+      const url = `https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${symbol},day,,,${limit},qfq`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error('腾讯请求失败');
+      const json = await resp.json();
+      const key = Object.keys(json.data || {})[0];
+      if (!key) throw new Error('腾讯无数据');
+      const dayData = json.data[key].qfqday || json.data[key].day;
+      if (!dayData || dayData.length < 30) throw new Error('腾讯数据不足');
+      const list = dayData.map(p => ({
+        date: p[0], open: +p[1], close: +p[2], high: +p[3], low: +p[4], pct: 0
+      }));
+      for (let i = 1; i < list.length; i++)
+        list[i].pct = ((list[i].close - list[i-1].close) / list[i-1].close) * 100;
+      let name = pure;
+      try {
+        if (json.data[key].qt && json.data[key].qt[symbol])
+          name = json.data[key].qt[symbol][1] || pure;
+      } catch(e) {}
+      return { name, list };
+    }
+    async function fetchSina(market, pure, limit) {
+      const symbol = market + pure;
+      const url = `https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_MarketData.getKLineData?symbol=${symbol}&scale=240&ma=no&datalen=${limit}`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error('新浪请求失败');
+      const data = JSON.parse(await resp.text());
+      if (!Array.isArray(data) || data.length < 30) throw new Error('新浪数据不足');
+      const list = data.map(p => ({
+        date: p.day, open: +p.open, high: +p.high, low: +p.low, close: +p.close, pct: 0
+      }));
+      for (let i = 1; i < list.length; i++)
+        list[i].pct = ((list[i].close - list[i-1].close) / list[i-1].close) * 100;
+      return { name: pure, list };
+    }
+    async function fetchKlines(provider, market, pure, limit) {
+      if (provider === 'eastmoney') return fetchEastmoney(market, pure, limit);
+      if (provider === 'tencent') return fetchTencent(market, pure, limit);
+      if (provider === 'sina') return fetchSina(market, pure, limit);
+      throw new Error('未知数据源');
+    }
+
+    // ---------- 信号 ----------
+    function generateSignals(rows, maPeriod) {
+      const n = rows.length;
+      if (n < maPeriod + 5) return rows.map(r => ({ ...r, signal: '数据不足', signalClass: '' }));
+
+      const recent = rows.slice(-Math.min(30, n));
+      let maxHighDiff = -Infinity, minLowDiff = Infinity;
+      recent.forEach(r => {
+        if (r.highDiff != null) maxHighDiff = Math.max(maxHighDiff, r.highDiff);
+        if (r.lowDiff != null) minLowDiff = Math.min(minLowDiff, r.lowDiff);
+      });
+
+      const lastClose = rows[n - 1].close;
+      const extremePos = Math.max(lastClose * 0.08, 3);
+      const extremeNeg = -Math.max(lastClose * 0.08, 3);
+
+      return rows.map((r, i) => {
+        if (i < maPeriod - 1) return { ...r, signal: '—', signalClass: '' };
+        let signal = '观望', signalClass = '';
+        const wasExtremePos = maxHighDiff > extremePos;
+        const shrinkingPos = wasExtremePos && r.highDiff < maxHighDiff * 0.7;
+        const wasExtremeNeg = minLowDiff < extremeNeg;
+        const convergingNeg = wasExtremeNeg && r.lowDiff > minLowDiff * 0.7 && r.lowDiff < extremeNeg * 0.5;
+
+        if (i >= n - 8) {
+          if (shrinkingPos || (r.highDiff > extremePos && r.closeDiff < r.highDiff * 0.6)) {
+            signal = '减仓/卖出'; signalClass = 'signal-sell';
+          } else if (convergingNeg || (r.lowDiff < extremeNeg && r.closeDiff > r.lowDiff * 0.6)) {
+            signal = '加仓/买入'; signalClass = 'signal-buy';
+          } else if (r.highDiff > extremePos * 0.5) {
+            signal = '高位警惕'; signalClass = 'signal-sell';
+          } else if (r.lowDiff < extremeNeg * 0.5) {
+            signal = '低位关注'; signalClass = 'signal-buy';
+          }
+        }
+        return { ...r, signal, signalClass };
+      });
+    }
+
+    function processData(list, maPeriod) {
+      const closes = list.map(r => r.close);
+      const ma = calcMA(closes, maPeriod);
+      let rows = list.map((r, i) => {
+        const m = ma[i];
+        return {
+          ...r,
+          ma: m,
+          highDiff: m != null ? r.high - m : null,
+          lowDiff: m != null ? r.low - m : null,
+          closeDiff: m != null ? r.close - m : null
+        };
+      });
+      return generateSignals(rows, maPeriod);
+    }
+
+    function overallSignal(rows) {
+      const latest = rows[rows.length - 1];
+      const recent5 = rows.slice(-5);
+      const sellCount = recent5.filter(r => /减仓|卖出|警惕/.test(r.signal)).length;
+      const buyCount = recent5.filter(r => /加仓|买入|关注/.test(r.signal)).length;
+      if (sellCount >= 2 || /减仓|卖出/.test(latest.signal))
+        return { text: '建议减仓/卖出', cls: 'sell', reason: '正差值从极值回落或收盘差值缩小' };
+      if (buyCount >= 2 || /加仓|买入/.test(latest.signal))
+        return { text: '建议加仓/买入', cls: 'buy', reason: '负差值极值后收敛，收盘差值改善' };
+      return { text: '建议观望', cls: '', reason: '未进入明确极值区或处于中继' };
+    }
+
+    // ---------- 单票分析 ----------
+    async function analyzeSingle() {
+      const input = document.getElementById('stockCode').value;
+      const statusEl = document.getElementById('singleStatus');
+      const btn = document.getElementById('analyzeBtn');
+      if (!input.trim()) { statusEl.className = 'status error'; statusEl.textContent = '请输入代码'; return; }
+
+      const { market, pure } = normalizeCode(input);
+      if (pure.length < 6) { statusEl.className = 'status error'; statusEl.textContent = '代码格式错误'; return; }
+
+      const provider = document.getElementById('provider').value;
+      const limit = +document.getElementById('days').value || 120;
+      const maPeriod = getMaPeriod();
+
+      btn.disabled = true;
+      statusEl.className = 'status loading';
+      statusEl.textContent = '获取数据中...';
+      document.getElementById('resultArea').style.display = 'none';
+
+      try {
+        const { name, list } = await fetchKlines(provider, market, pure, limit);
+        if (list.length < maPeriod + 5) throw new Error('K线数量不足以计算所选均线，请增加K线数量');
+
+        const rows = processData(list, maPeriod);
+        const display = rows.slice(-30).reverse();
+        const latest = rows[rows.length - 1];
+        const ov = overallSignal(rows);
+        const maLabel = getMaLabel();
+        const providerName = document.getElementById('provider').selectedOptions[0].text;
+
+        document.getElementById('tableBody').innerHTML = display.map(r => {
+          const c = r.pct >= 0 ? 'pos' : 'neg';
+          return `<tr>
+            <td>${r.date}</td>
+            <td>${formatNum(r.high)}</td>
+            <td>${formatNum(r.low)}</td>
+            <td class="${c}">${formatNum(r.close)}</td>
+            <td class="${c}">${r.pct >= 0 ? '+' : ''}${formatNum(r.pct)}%</td>
+            <td>${formatNum(r.ma)}</td>
+            <td class="${r.highDiff > 0 ? 'pos' : 'neg'}">${formatNum(r.highDiff)}</td>
+            <td class="${r.lowDiff > 0 ? 'pos' : 'neg'}">${formatNum(r.lowDiff)}</td>
+            <td class="${r.closeDiff > 0 ? 'pos' : 'neg'}">${formatNum(r.closeDiff)}</td>
+            <td class="${r.signalClass}">${r.signal}</td>
+          </tr>`;
+        }).join('');
+
+        document.getElementById('stockTitle').innerHTML =
+          `${name}（${market.toUpperCase()}${pure}）<span class="provider-badge">${providerName} · ${maLabel}</span>`;
+        document.getElementById('summaryBox').innerHTML = `
+          <div class="summary-item ${ov.cls}"><h4>综合信号</h4><div class="value">${ov.text}</div></div>
+          <div class="summary-item"><h4>最新收盘</h4><div class="value">${formatNum(latest.close)}</div></div>
+          <div class="summary-item"><h4>最高-${maLabel}</h4><div class="value ${latest.highDiff > 0 ? 'pos' : 'neg'}">${formatNum(latest.highDiff)}</div></div>
+          <div class="summary-item"><h4>最低-${maLabel}</h4><div class="value ${latest.lowDiff > 0 ? 'pos' : 'neg'}">${formatNum(latest.lowDiff)}</div></div>
+          <div class="summary-item"><h4>收盘-${maLabel}</h4><div class="value ${latest.closeDiff > 0 ? 'pos' : 'neg'}">${formatNum(latest.closeDiff)}</div></div>
+          <div class="summary-item"><h4>依据</h4><div style="font-size:0.9rem;">${ov.reason}</div></div>`;
+
+        document.getElementById('resultArea').style.display = 'block';
+        statusEl.className = 'status ok';
+        statusEl.textContent = `成功 · ${list.length} 根K线 · ${maLabel}`;
+      } catch (err) {
+        statusEl.className = 'status error';
+        statusEl.innerHTML = `失败：${err.message}<br><small>可切换数据源或增加K线数量后重试</small>`;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    // ---------- 批量分析 ----------
+    async function batchAnalyze() {
+      const list = getWatchlist();
+      if (!list.length) {
+        document.getElementById('batchStatus').className = 'status error';
+        document.getElementById('batchStatus').textContent = '观察列表为空，请先添加股票';
+        return;
+      }
+
+      const provider = document.getElementById('provider').value;
+      const limit = +document.getElementById('days').value || 120;
+      const maPeriod = getMaPeriod();
+      const maLabel = getMaLabel();
+      const providerName = document.getElementById('provider').selectedOptions[0].text;
+
+      const btn = document.getElementById('batchBtn');
+      const statusEl = document.getElementById('batchStatus');
+      const progress = document.getElementById('batchProgress');
+      const bar = document.getElementById('batchBar');
+      const batchArea = document.getElementById('batchResultArea');
+      const batchBody = document.getElementById('batchBody');
+
+      btn.disabled = true;
+      progress.style.display = 'block';
+      bar.style.width = '0%';
+      statusEl.className = 'status loading';
+      statusEl.textContent = `准备分析 ${list.length} 只股票...`;
+      batchBody.innerHTML = '';
+      batchArea.style.display = 'none';
+
+      const results = [];
+      for (let i = 0; i < list.length; i++) {
+        const code = list[i];
+        statusEl.textContent = `正在分析 ${i + 1}/${list.length}：${code.toUpperCase()}`;
+        bar.style.width = `${((i) / list.length) * 100}%`;
+
+        try {
+          const { market, pure } = normalizeCode(code);
+          const { name, list: klist } = await fetchKlines(provider, market, pure, limit);
+          if (klist.length < maPeriod + 5) throw new Error('K线不足');
+          const rows = processData(klist, maPeriod);
+          const latest = rows[rows.length - 1];
+          const ov = overallSignal(rows);
+          results.push({
+            code: pure, market, name, latest, ov, ok: true
+          });
+        } catch (e) {
+          results.push({
+            code: code, market: '', name: '—', latest: null, ov: { text: '获取失败', cls: '', reason: e.message }, ok: false
+          });
+        }
+        // 轻微延迟，避免请求过快
+        await new Promise(r => setTimeout(r, 300));
+      }
+
+      bar.style.width = '100%';
+      batchBody.innerHTML = results.map(r => {
+        if (!r.ok) {
+          return `<tr>
+            <td>${r.code.toUpperCase()}</td><td>—</td><td>—</td><td>—</td>
+            <td>—</td><td>—</td><td>—</td>
+            <td class="signal-sell">获取失败</td>
+            <td></td>
+          </tr>`;
+        }
+        const c = r.latest.pct >= 0 ? 'pos' : 'neg';
+        return `<tr>
+          <td>${r.market.toUpperCase()}${r.code}</td>
+          <td>${r.name}</td>
+          <td class="${c}">${formatNum(r.latest.close)}</td>
+          <td class="${c}">${r.latest.pct >= 0 ? '+' : ''}${formatNum(r.latest.pct)}%</td>
+          <td class="${r.latest.highDiff > 0 ? 'pos' : 'neg'}">${formatNum(r.latest.highDiff)}</td>
+          <td class="${r.latest.lowDiff > 0 ? 'pos' : 'neg'}">${formatNum(r.latest.lowDiff)}</td>
+          <td class="${r.latest.closeDiff > 0 ? 'pos' : 'neg'}">${formatNum(r.latest.closeDiff)}</td>
+          <td class="${r.ov.cls === 'sell' ? 'signal-sell' : r.ov.cls === 'buy' ? 'signal-buy' : ''}">${r.ov.text}</td>
+          <td><button class="secondary" style="padding:4px 10px;font-size:0.8rem;"
+            onclick="document.getElementById('stockCode').value='${r.market}${r.code}';analyzeSingle();document.getElementById('resultArea').scrollIntoView({behavior:'smooth'})">详情</button></td>
+        </tr>`;
+      }).join('');
+
+      document.getElementById('batchMeta').textContent = `${providerName} · ${maLabel} · ${results.length}只`;
+      batchArea.style.display = 'block';
+      statusEl.className = 'status ok';
+      statusEl.textContent = `批量完成：成功 ${results.filter(r => r.ok).length} / ${results.length}`;
+      btn.disabled = false;
+      setTimeout(() => { progress.style.display = 'none'; }, 800);
+    }
+
+    document.getElementById('stockCode').addEventListener('keydown', e => {
+      if (e.key === 'Enter') analyzeSingle();
+    });
+  </script>
+</body>
+</html>
